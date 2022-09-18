@@ -1,18 +1,16 @@
-import { initTRPC, router } from '@trpc/server';
-import * as trpcNext from '@trpc/server/adapters/next';
-import { z } from 'zod';
-
-type Session = {
-  userId: string;
-}
+import { initTRPC, router } from "@trpc/server";
+import * as trpcNext from "@trpc/server/adapters/next";
+import { z } from "zod";
 
 type Context = {
-  session?: Session
-}
+  session?: {
+    userId: string;
+  };
+};
 
 const t = initTRPC.context<Context>().create();
 
-const childRouter = router<Context>().query('hello', {
+const childRouter = router<Context>().query("hello", {
   resolve() {
     return "hi";
   },
@@ -20,10 +18,12 @@ const childRouter = router<Context>().query('hello', {
 
 const legacyRouter = router<Context>()
   .middleware(({ ctx, next }) => {
-    return next({ ctx: { ...ctx, session: { userId: '123' }} });
+    return next({ ctx: { session: { userId: "123" } } });
   })
-  .merge('child.', childRouter)
-  .query('hello', {
+
+  // Oops! Type error on the next line.
+  .merge("child.", childRouter)
+  .query("hello", {
     input: z
       .object({
         text: z.string().nullish(),
@@ -31,14 +31,14 @@ const legacyRouter = router<Context>()
       .nullish(),
     resolve({ input }) {
       return {
-        greeting: `hello ${input?.text ?? 'world'}`,
+        greeting: `hello ${input?.text ?? "world"}`,
       };
     },
   })
   .interop();
 
 const v10Router = t.router({
-  foo: t.procedure.query(() => 'bar' as const),
+  foo: t.procedure.query(() => "bar" as const),
 });
 
 const appRouter = t.mergeRouters(legacyRouter, v10Router);
@@ -50,8 +50,6 @@ export type AppRouter = typeof appRouter;
 export default trpcNext.createNextApiHandler({
   router: appRouter,
   createContext: () => {
-    return {
-
-    }
+    return {};
   },
 });
